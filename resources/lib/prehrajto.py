@@ -24,7 +24,7 @@ from bs4 import BeautifulSoup
 from urllib.parse import quote, urlparse
 
 
-from resources.lib.utils import get_url, log, clean_title_for_tmdb, convert_size_to_bytes, duration_to_seconds
+from resources.lib.utils import get_url, log, clean_title_for_tmdb, convert_size_to_bytes, duration_to_seconds, safe_get, safe_post
 
 
 
@@ -50,7 +50,8 @@ class PrehrajTo:
             'remember': 'on', '_do': 'login-loginForm-submit'
         }
         try:
-            res = self.session.post(self.base_url + '/', login_data)
+            # add timeout to prevent blocking indefinitely
+            res = safe_post(self.session, self.base_url + '/', data=login_data, timeout=10)
             soup = BeautifulSoup(res.content, 'html.parser')
             if soup.find('span', {'class': 'color-green'}):
                 return res.cookies
@@ -88,7 +89,8 @@ class PrehrajTo:
     def _scrape_search_page(self, url, cookies):
         videos = []
         try:
-            html = self.session.get(url, cookies=cookies, headers=self.headers).content
+            resp = safe_get(self.session, url, cookies=cookies, headers=self.headers, timeout=15)
+            html = resp.content if resp is not None else b''
             soup = BeautifulSoup(html, 'html.parser')
             video_links = soup.find_all('a', {'class': 'video--link'})
             for v in video_links:

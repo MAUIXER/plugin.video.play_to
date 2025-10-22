@@ -21,6 +21,8 @@ import math
 import unicodedata
 
 from urllib.parse import urlencode
+import requests
+from requests.exceptions import RequestException
 
 
 
@@ -80,7 +82,7 @@ def get_url(**kwargs):
 
 
 
-def popinfo(message, title="[COLOR orange]| PLAY.TO |[/COLOR]", time=5000, icon=xbmcgui.NOTIFICATION_INFO, sound=False):
+def popinfo(message, title="[B][COLOR orange]| PLAY.TO |[/COLOR][/B]", time=5000, icon=xbmcgui.NOTIFICATION_INFO, sound=False):
     xbmcgui.Dialog().notification(title, message, icon, time, sound)
 
 
@@ -131,6 +133,55 @@ def duration_to_seconds(duration_str):
         return 0
     except (ValueError, TypeError):
         return 0
+
+
+# ----------------------
+# Centralized HTTP helpers
+# ----------------------
+DEFAULT_HTTP_TIMEOUT = 15
+
+
+def safe_get(session_or_url, url=None, timeout=None, **kwargs):
+    """Safe GET helper. Accepts either (session, url) or (url) where session_or_url is requests.Session or a URL string.
+    Returns Response or None on error.
+    """
+    _timeout = timeout or DEFAULT_HTTP_TIMEOUT
+    try:
+        if url is None:
+            # called as safe_get(url=..., ...)
+            resp = requests.get(session_or_url, timeout=_timeout, **kwargs)
+        else:
+            session = session_or_url
+            resp = session.get(url, timeout=_timeout, **kwargs)
+        resp.raise_for_status()
+        return resp
+    except RequestException as e:
+        try:
+            log(f"HTTP GET error for {url or session_or_url}: {e}", level=xbmc.LOGERROR)
+        except Exception:
+            pass
+        return None
+
+
+def safe_post(session_or_url, url=None, timeout=None, **kwargs):
+    """Safe POST helper. Accepts either (session, url) or (url) where session_or_url is requests.Session or a URL string.
+    Returns Response or None on error.
+    """
+    _timeout = timeout or DEFAULT_HTTP_TIMEOUT
+    try:
+        if url is None:
+            resp = requests.post(session_or_url, timeout=_timeout, **kwargs)
+        else:
+            session = session_or_url
+            resp = session.post(url, timeout=_timeout, **kwargs)
+        resp.raise_for_status()
+        return resp
+    except RequestException as e:
+        try:
+            log(f"HTTP POST error for {url or session_or_url}: {e}", level=xbmc.LOGERROR)
+        except Exception:
+            pass
+        return None
 
 
 

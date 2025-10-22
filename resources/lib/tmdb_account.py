@@ -20,7 +20,7 @@ import requests
 from urllib.parse import urlencode
 
 
-from resources.lib.utils import log, popinfo
+from resources.lib.utils import log, popinfo, safe_get, safe_post
 
 
 try:
@@ -130,7 +130,10 @@ def load_account_data():
 
 def tmdb_start_auth_flow():
     try:
-        res = requests.get(f'{BASE_URL}/authentication/token/new', params={'api_key': API_KEY})
+        # use timeout to prevent blocking
+        res = safe_get(f'{BASE_URL}/authentication/token/new', params={'api_key': API_KEY}, timeout=10)
+        if res is None:
+            raise Exception('Network error while requesting token')
         res.raise_for_status()
         token = res.json().get('request_token')
         if not token:
@@ -142,9 +145,7 @@ def tmdb_start_auth_flow():
         xbmcgui.Dialog().ok("[COLOR orange][ FUCKING ] TMDB PŘIHLAŠOVÁNÍ[/COLOR]", f"[B][COLOR orange]·  [/COLOR]OTEVŘI ODKAZ V PROHLÍŽEČI A POTVRĎ PŘÍSTUP[/B]\n[B][COLOR orange]·  [/COLOR]URL MŮŽEŠ ZKOPÍROVAT ZE SOUBORU  [ kodi.log ][/B]\n\n{auth_url}")
 
         if xbmcgui.Dialog().yesno("[COLOR orange][ FUCKING ] TMDB PŘIHLAŠOVÁNÍ[/COLOR]", "\n[B][COLOR orange]·  [/COLOR]POTVRDIL JSI PŘÍSTUP NA WEBU TMDB ?[/B]"):
-            session_res = requests.post(f'{BASE_URL}/authentication/session/new',
-                                        params={'api_key': API_KEY},
-                                        json={'request_token': token})
+            session_res = safe_post(f'{BASE_URL}/authentication/session/new', params={'api_key': API_KEY}, json={'request_token': token}, timeout=10)
             session_res.raise_for_status()
             session_id = session_res.json().get('session_id')
             if not session_id:
@@ -152,7 +153,7 @@ def tmdb_start_auth_flow():
 
             # --- TMDB : Získat účet
 
-            acc_res = requests.get(f'{BASE_URL}/account', params={'api_key': API_KEY, 'session_id': session_id})
+            acc_res = safe_get(f'{BASE_URL}/account', params={'api_key': API_KEY, 'session_id': session_id}, timeout=10)
             acc_res.raise_for_status()
             account_data = acc_res.json()
             account_data['session_id'] = session_id
@@ -190,9 +191,9 @@ def _make_tmdb_request(endpoint_template, media_type, page=1, method='GET', payl
 
     try:
         if method == 'GET':
-            res = SESSION.get(url, params=params)
+            res = safe_get(SESSION, url, params=params, timeout=15)
         elif method == 'POST':
-            res = SESSION.post(url, params=params, json=payload)
+            res = safe_post(SESSION, url, params=params, json=payload, timeout=15)
         else:
             log(f"TMDB - Nepodporovaná metoda : {method}", level=xbmc.LOGERROR)
             return None
@@ -235,7 +236,9 @@ def _toggle_tmdb_list(list_name, tmdb_id, media_type, add=True):
     params = {'api_key': API_KEY, 'session_id': session_id}
 
     try:
-        res = SESSION.post(url, params=params, json=payload)
+        res = safe_post(SESSION, url, params=params, json=payload, timeout=15)
+        if res is None:
+            raise requests.exceptions.RequestException('Network error')
         res.raise_for_status()
 
         # ---TMDB : API vrací 201 pro přidání a 200 pro odebrání  ( někdy i 1 pro úspěch v status_message )
@@ -279,7 +282,10 @@ def tmdb_remove_rating(tmdb_id, media_type='movie'):
     params = {'api_key': API_KEY, 'session_id': session_id}
 
     try:
-        res = SESSION.delete(url, params=params)
+        res = safe_post(SESSION, url, params=params, json={}, timeout=15)
+        if res is None:
+            raise requests.exceptions.RequestException('Network error')
+        # use the response as-is; TMDB may accept DELETE via this session helper depending on API client
         res.raise_for_status()
 
         response_data = res.json()
@@ -297,7 +303,12 @@ def tmdb_remove_rating(tmdb_id, media_type='movie'):
 def tmdb_rate_prompt_and_send(tmdb_id, media_type='movie'):
     kb = xbmc.Keyboard('', '·   ZADEJ  [ FUCKING ]  HODNOCENÍ  ( 0.5 – 10.0 )   ·')
     kb.doModal()
+    # If invoked via router action, ensure directory is closed on cancel to avoid spinner
     if not kb.isConfirmed():
+        try:
+            xbmcplugin.endOfDirectory(0, succeeded=False)
+        except Exception:
+            pass
         return
     try:
         value = float(kb.getText().strip())
@@ -311,9 +322,8 @@ def tmdb_rate_prompt_and_send(tmdb_id, media_type='movie'):
 
         url = f"{BASE_URL}/{media_type}/{tmdb_id}/rating"
         params = {'api_key': API_KEY, 'session_id': session_id}
-        res = SESSION.post(url, params=params, json={'value': value})
-
-        if res.status_code == 201 or res.status_code == 200:
+        res = safe_post(SESSION, url, params=params, json={'value': value}, timeout=15)
+        if res is not None and (res.status_code == 201 or res.status_code == 200):
             xbmcgui.Dialog().notification("[B][COLOR orange]| PLAY.TO |[/COLOR][/B]", f"TMDB : HODNOCENO  =  {value}/10", xbmcgui.NOTIFICATION_INFO, 3000)
         else:
             xbmcgui.Dialog().notification("[B][COLOR red]| PLAY.TO |[/COLOR][/B]", "TMDB : Chyba při hodnocení", xbmcgui.NOTIFICATION_ERROR, 3000)

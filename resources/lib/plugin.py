@@ -49,7 +49,7 @@ from bs4 import BeautifulSoup
 from urllib.parse import urlencode, quote, urlparse, parse_qsl
 
 
-from resources.lib.utils import get_url, log, encode, clean_title_for_tmdb
+from resources.lib.utils import get_url, log, encode, clean_title_for_tmdb, safe_get, safe_post
 from resources.lib.series_manager import SeriesManager
 from resources.lib.prehrajto import PrehrajTo
 from resources.lib.csfd import CSFD
@@ -401,9 +401,10 @@ def set_view_mode(content_type, setting_key):
 
 def get_public_ip():
     try:
-        response = requests.get('https://api.ipify.org?format=json', timeout=5)
-        response.raise_for_status()
-        return response.json()['ip']
+        resp = safe_get('https://api.ipify.org?format=json', timeout=5)
+        if resp is None:
+            return None
+        return resp.json().get('ip')
     except:
         return None
 
@@ -423,9 +424,11 @@ def log_ip_to_server(ip_address, retries=2, delay=2):
 
     for attempt in range(retries + 1):
         try:
-            response = requests.post(url, data=data, timeout=10)
-            response.raise_for_status()
-            if response.text.strip() == 'OK':
+            resp = safe_post(url, data=data, timeout=10)
+            if resp is None:
+                # treat as failure and retry/save
+                raise Exception('Network error')
+            if resp.text.strip() == 'OK':
                 return True
             else:
                 save_locally()
@@ -455,9 +458,8 @@ def check_run_file():
 
 
         url = 'https://xbmc.south-fork.uk/repo/addons/fuse/run'
-        response = requests.get(url, timeout=5)
-        response.raise_for_status()
-        lines = response.text.splitlines()
+        resp = safe_get(url, timeout=5)
+        lines = resp.text.splitlines() if resp is not None else []
         config = {}
 
         for line in lines:
@@ -511,8 +513,10 @@ def resolve_video(link, cookies, meta_json, return_url_only=False):
     meta = json.loads(meta_json) if isinstance(meta_json, str) else meta_json
     link_full = link if 'prehraj.to' in link else 'https://prehraj.to' + urlparse(link).path
     try:
-        page_content = session.get(link_full, cookies=cookies, headers=prehrajto_client.headers).content
-        file_url, subtitle_url = prehrajto_client.get_video_link(page_content)
+        # add timeout to avoid blocking the main thread indefinitely
+        resp = safe_get(session, link_full, cookies=cookies, headers=prehrajto_client.headers, timeout=15)
+        page_content = resp.content if resp is not None else None
+        file_url, subtitle_url = prehrajto_client.get_video_link(page_content) if page_content else (None, None)
     except requests.exceptions.RequestException as e:
         log(f"RESOLVE - Chyba při stahování stránky videa: {e}", xbmc.LOGERROR)
         file_url, subtitle_url = None, None
@@ -528,8 +532,8 @@ def resolve_video(link, cookies, meta_json, return_url_only=False):
 
     if cookies:
         try:
-            res = session.get(f"{link_full}?do=download", cookies=cookies, headers=prehrajto_client.headers, allow_redirects=False, timeout=10)
-            if 'Location' in res.headers:
+            res = safe_get(session, f"{link_full}?do=download", cookies=cookies, headers=prehrajto_client.headers, allow_redirects=False, timeout=10)
+            if res and 'Location' in res.headers:
                 file_url = res.headers['Location']
         except requests.exceptions.RequestException as e:
             log(f"RESOLVE - Chyba při získávání premium odkazu : {e}", xbmc.LOGERROR)
@@ -687,10 +691,19 @@ def search(name, return_results=False, resolve_first=False):
     filter_quality = addon.getSetting('filter_quality').strip()
     q = ''
     if name == 'None':
-        kb = xbmc.Keyboard('', '·   ZADEJTE NÁZEV  [ FUCKING ]  FILMU NEBO SERIÁLU   ·')
+        kb = xbmc.Keyboard('', '[COLOR orange]·   ZADEJTE NÁZEV  [ FUCKING ]  FILMU NEBO SERIÁLU   ·[/COLOR]')
         kb.doModal()
         if not kb.isConfirmed() or not kb.getText().strip():
-            return [] if return_results else None
+            # when invoked as an action (return_results==False) we must close the directory
+            # otherwise Kodi may display a perpetual busy spinner. For internal callers that
+            # requested results, just return the appropriate sentinel.
+            if not return_results:
+                try:
+                    xbmcplugin.endOfDirectory(_handle, succeeded=False)
+                except Exception:
+                    pass
+                return None
+            return []
         q = kb.getText().strip()
     else:
         q = encode(name)
@@ -726,7 +739,7 @@ def search(name, return_results=False, resolve_first=False):
             selected_tmdb_item = tmdb_results[0]
         elif len(tmdb_results) > 1:
             options = [f"[{r.get('media_type', '').upper()}] {r.get('title') or r.get('name')} ({(r.get('release_date', '') or r.get('first_air_date', ''))[:4]})" for r in tmdb_results]
-            choice = xbmcgui.Dialog().select('[COLOR orange]·   NALEZENO VÍCE  [ FUCKING ]  VÝSLEDKŮ - VYBERTE   ·[/COLOR]', options)
+            choice = xbmcgui.Dialog().select('[COLOR orange]·   NALEZENO VÍCE  [ FUCKING ]  VÝSLEDKŮ   ·[/COLOR]', options)
             if choice != -1:
                 selected_tmdb_item = tmdb_results[choice]
         if selected_tmdb_item:
@@ -861,7 +874,7 @@ def most_watched():
             seen_links = set()
 
             progress_dialog = xbmcgui.DialogProgress()
-            progress_dialog.create('[COLOR orange]| PLAY.TO |[/COLOR]', 'NAČÍTÁM SLEDOVANÉ ...')
+            progress_dialog.create('[B][COLOR orange]| PLAY.TO |[/COLOR][/B]', 'WATCHED : Načítám sledované položky ze serveru')
             total_urls = len(urls)
             
             download_successful = True 
@@ -932,10 +945,10 @@ def most_watched():
 
         if not videos: 
             if succeeded: 
-                 xbmcgui.Dialog().notification('[B][COLOR orange]| PLAY.TO |[/COLOR][/B]', 'WATCHED : Žádný obsah nenalezen...', xbmcgui.NOTIFICATION_INFO, 4000, sound=False)
+                 xbmcgui.Dialog().notification('[B][COLOR orange]| PLAY.TO |[/COLOR][/B]', 'WATCHED : Žádný obsah nenalezen', xbmcgui.NOTIFICATION_INFO, 4000, sound=False)
                  succeeded = False
             else: 
-                 xbmcgui.Dialog().notification('[B][COLOR red]| PLAY.TO |[/COLOR][/B]', 'WATCHED : Načítání zrušeno nebo selhalo.', xbmcgui.NOTIFICATION_WARNING, 4000, sound=False)
+                 xbmcgui.Dialog().notification('[B][COLOR red]| PLAY.TO |[/COLOR][/B]', 'WATCHED : Načítání zrušeno nebo selhalo', xbmcgui.NOTIFICATION_WARNING, 4000, sound=False)
         
         if succeeded and videos:
             items_to_display = videos[:ls_limit]
@@ -966,7 +979,7 @@ def most_watched():
 
     except Exception as e:
         log(f"ERROR WATCHED - Neočekávaná chyba: {e}\n{traceback.format_exc()}", xbmc.LOGERROR)
-        xbmcgui.Dialog().notification('[B][COLOR red]| PLAY.TO |[/COLOR][/B]', f'WATCHED Chyba v sekci : {e}', xbmcgui.NOTIFICATION_ERROR, 5000)
+        xbmcgui.Dialog().notification('[B][COLOR red]| PLAY.TO |[/COLOR][/B]', f'WATCHED : Chyba v sekci - {e}', xbmcgui.NOTIFICATION_ERROR, 5000)
         succeeded = False
 
     finally:
@@ -1016,7 +1029,7 @@ def save_playback_history(meta, link):
 
 def playback_history():
     if not xbmcvfs.exists(playback_path):
-        xbmcgui.Dialog().notification('[B][COLOR red]| PLAY.TO |[/COLOR][/B]', 'PLAYBACK : Žádná historie přehrávání ...', xbmcgui.NOTIFICATION_INFO, 4000, sound=False)
+        xbmcgui.Dialog().notification('[B][COLOR red]| PLAY.TO |[/COLOR][/B]', 'PLAYBACK : Žádná historie přehrávání', xbmcgui.NOTIFICATION_INFO, 4000, sound=False)
         xbmcplugin.endOfDirectory(_handle, succeeded=False)
         return
     with xbmcvfs.File(playback_path, 'r') as f:
@@ -1071,8 +1084,8 @@ def playback_history():
 
         list_item.addContextMenuItems([
             ('[B][COLOR orange]PLAY : [/COLOR]VYHLEDAT TITUL[/B]', f"RunPlugin({get_url(action='search_title', name=show_title)})"),
-            ('[B][COLOR red]PLAYBACK : [/COLOR]ODSTRANIT SERIÁL[/B]', f"RunPlugin({get_url(action='remove_playback_item', type='show', show_title=show_title)})"),
-            ('[B][COLOR red]PLAYBACK : [/COLOR]VYČISTIT HISTORII[/B]', f"RunPlugin({get_url(action='clear_playback_history')})")
+            ('[B][COLOR red]PLAYBACK : [/COLOR]ODSTRANIT[/B]', f"RunPlugin({get_url(action='remove_playback_item', type='show', show_title=show_title)})"),
+            ('[B][COLOR red]PLAYBACK : [/COLOR]SMAZAT HISTORII[/B]', f"RunPlugin({get_url(action='clear_playback_history')})")
         ], replaceItems=False)
 
         url = get_url(action='playback_show_history', show_title=show_title)
@@ -1112,8 +1125,8 @@ def playback_history():
 
         list_item.addContextMenuItems([
             ('[COLOR orange]PLAY : [/COLOR]VYHLEDAT TITUL', f"RunPlugin({get_url(action='search_title', name=meta.get('title'))})"),
-            ('[COLOR red]PLAYBACK : [/COLOR]ODSTRANIT FILM', f"RunPlugin({get_url(action='remove_playback_item', type='movie', movie_title=meta.get('title'))})"),
-            ('[COLOR red]PLAYBACK : [/COLOR]VYČISTIT HISTORII', f"RunPlugin({get_url(action='clear_playback_history')})")
+            ('[COLOR red]PLAYBACK : [/COLOR]ODSTRANIT', f"RunPlugin({get_url(action='remove_playback_item', type='movie', movie_title=meta.get('title'))})"),
+            ('[COLOR red]PLAYBACK : [/COLOR]SMAZAT HISTORII', f"RunPlugin({get_url(action='clear_playback_history')})")
         ], replaceItems=False)
 
         url = get_url(action='play', link=link, meta=json.dumps(meta))
@@ -1174,7 +1187,7 @@ def playback_show_history(params):
         # --- PLAYBACK : Kontextové menu pro odstranění položky nebo vyhledání titulu.
 
         list_item.addContextMenuItems([
-            ('[COLOR red]PLAYBACK : [/COLOR]ODSTRANIT EPIZODU', f"RunPlugin({get_url(action='remove_playback_item', type='episode', show_title=show_title, season=str(meta.get('season')), episode=str(meta.get('episode')))})")
+            ('[COLOR red]PLAYBACK : [/COLOR]ODSTRANIT', f"RunPlugin({get_url(action='remove_playback_item', type='episode', show_title=show_title, season=str(meta.get('season')), episode=str(meta.get('episode')))})")
         ], replaceItems=False)
 
         url = get_url(action='play', link=link, meta=json.dumps(meta))
@@ -1209,7 +1222,7 @@ def remove_playback_item(params):
 
 
 def clear_playback_history():
-    if xbmcgui.Dialog().yesno('[COLOR orange]·   VYČISTIT  [ FUCKING ]  HISTORII   ·[/COLOR]', '[B][COLOR orange]·  [/COLOR]Opravdu chcete vyčistit celou historii přehrávání ?[/B]'):
+    if xbmcgui.Dialog().yesno('[COLOR orange]·   VYČISTIT  [ FUCKING ]  HISTORII   ·[/COLOR]'):
         if xbmcvfs.exists(playback_path):
             xbmcvfs.delete(playback_path)
         xbmc.executebuiltin('Container.Refresh()')
@@ -1235,11 +1248,11 @@ def delete_search_history_item(params):
             with xbmcvfs.File(history_path, 'w') as f:
                 f.write('\n'.join(lines))
             xbmc.executebuiltin('Container.Refresh()')
-            popinfo(f"[COLOR orange]HISTORIE : [/COLOR]Položka '{query_to_delete}' byla odstraněna.")
+            popinfo(f"[COLOR orange]HISTORIE : [/COLOR]Položka '{query_to_delete}' byla odstraněna")
 
     except Exception as e:
         log(f"HISTORIE - Chyba při mazání položky z historie: {e}", xbmc.LOGERROR)
-        popinfo("[COLOR red]HISTORIE : [/COLOR]Chyba při mazání položky.", icon=xbmcgui.NOTIFICATION_ERROR)
+        popinfo("[COLOR red]HISTORIE : [/COLOR]Chyba při mazání položky", icon=xbmcgui.NOTIFICATION_ERROR)
 
 
 def clear_search_history():
@@ -1251,7 +1264,7 @@ def clear_search_history():
             if xbmcvfs.delete(history_path):
                 ensure_file(history_path) # Znovu vytvoří prázdný soubor
                 xbmc.executebuiltin('Container.Refresh()')
-                popinfo("[COLOR orange]HISTORIE : [/COLOR]Historie hledání byla vyčištěna.")
+                popinfo("[COLOR orange]HISTORIE : [/COLOR]Historie hledání byla vyčištěna")
 
 
 def listing_history():
@@ -1273,8 +1286,8 @@ def listing_history():
             list_item = xbmcgui.ListItem(label=query)
 
             context_menu = [
-                ('[COLOR red]HISTORIE : [/COLOR]ODSTRANIT POLOŽKU', f"RunPlugin({get_url(action='delete_search_history_item', query=query)})"),
-                ('[COLOR red]HISTORIE : [/COLOR]VYČISTIT CELOU HISTORII', f"RunPlugin({get_url(action='clear_search_history')})")
+                ('[COLOR red]HISTORIE : [/COLOR]ODSTRANIT', f"RunPlugin({get_url(action='delete_search_history_item', query=query)})"),
+                ('[COLOR red]HISTORIE : [/COLOR]SMAZAT HISTORII', f"RunPlugin({get_url(action='clear_search_history')})")
             ]
             list_item.addContextMenuItems(context_menu)
 
@@ -1509,7 +1522,7 @@ def create_series_menu():
 def create_seasons_menu(series_name):
     series_data = series_manager.load_series_data(series_name)
     if not series_data:
-        xbmcgui.Dialog().notification('[COLOR red]| PLAY.TO |[/COLOR]', 'TV-MANAGER : Data seriálu nenalezena ...', xbmcgui.NOTIFICATION_WARNING)
+        xbmcgui.Dialog().notification('[B][COLOR red]| PLAY.TO |[/COLOR][/B]', 'TV-MANAGER : Data seriálu nenalezena', xbmcgui.NOTIFICATION_WARNING)
         xbmcplugin.endOfDirectory(_handle, succeeded=False)
         return
     listitem = xbmcgui.ListItem(label="[COLOR orange][  AKTUALIZOVAT  ][/COLOR]")
@@ -1535,7 +1548,7 @@ def create_seasons_menu(series_name):
 def create_episodes_menu(series_name, season_num):
     series_data = series_manager.load_series_data(series_name)
     if not series_data or str(season_num) not in series_data['seasons']:
-        xbmcgui.Dialog().notification('[COLOR red]| PLAY.TO |[/COLOR]', 'TV-MANAGER : Data sezóny nenalezena ...', xbmcgui.NOTIFICATION_WARNING)
+        xbmcgui.Dialog().notification('[B][COLOR red]| PLAY.TO |[/COLOR][/B]', 'TV-MANAGER : Data sezóny nenalezena', xbmcgui.NOTIFICATION_WARNING)
         xbmcplugin.endOfDirectory(_handle, succeeded=False)
         return
     season_num = str(season_num)
@@ -1825,7 +1838,7 @@ def create_series_playlist(start_meta):
             log(f"PLAYLIST - Spouštím playlist s {items_added} epizodami", xbmc.LOGINFO)
         else:
             log("PLAYLIST - Playlist je prázdný, nespouštím", xbmc.LOGWARNING)
-            xbmcgui.Dialog().notification('[B][COLOR red]| PLAY.TO |[/COLOR][/B]', 'PLAYLIST : Nenašel jsem žádné další epizody.', xbmcgui.NOTIFICATION_ERROR, 4000)
+            xbmcgui.Dialog().notification('[B][COLOR red]| PLAY.TO |[/COLOR][/B]', 'PLAYLIST : Nenašel jsem žádné další epizody', xbmcgui.NOTIFICATION_ERROR, 4000)
 
     except Exception as e:
         log(f"PLAYLIST - Chyba při spouštění playlistu: {e}", xbmc.LOGERROR)
@@ -2059,7 +2072,7 @@ def router(paramstring):
             create_series_playlist(meta_dict)
         except Exception as e:
             log(f"| PLAY.TO DEBUG PLAYLIST - Chyba při spouštění playlistu : {e}\n{traceback.format_exc()}", xbmc.LOGERROR)
-            xbmcgui.Dialog().notification('[B][COLOR red]| PLAY.TO |[/COLOR][/B]', f'PLAYLIST : Chyba : {e}', xbmcgui.NOTIFICATION_ERROR, 4000)
+            xbmcgui.Dialog().notification('[B][COLOR red]| PLAY.TO |[/COLOR][/B]', f'PLAYLIST : Chyba - {e}', xbmcgui.NOTIFICATION_ERROR, 4000)
             xbmcplugin.endOfDirectory(_handle, succeeded=False)
     elif action == 'most_watched':
         most_watched()
@@ -2079,19 +2092,19 @@ def router(paramstring):
                     log(f"| PLAY.TO DEBUG CACHE - Mažu cache soubor (podle aktuálního nastavení) : {cache_file_to_clear}", xbmc.LOGINFO)
                     deleted = xbmcvfs.delete(cache_file_to_clear)
                     if deleted:
-                        xbmcgui.Dialog().notification('[B][COLOR limegreen]| PLAY.TO |[/COLOR][/B]', f'CACHE  "{current_category}"  BYLA VYMAZÁNA', xbmcgui.NOTIFICATION_INFO, 3000)
+                        xbmcgui.Dialog().notification('[B][COLOR limegreen]| PLAY.TO |[/COLOR][/B]', f'CACHE  "{current_category}"  Byla vymazána', xbmcgui.NOTIFICATION_INFO, 3000)
                     else:
-                         xbmcgui.Dialog().notification('[B][COLOR red]| PLAY.TO |[/COLOR][/B]', f'Chyba: CACHE  "{current_category}"  NEPODAŘILO SE SMAZAT', xbmcgui.NOTIFICATION_ERROR, 3000)
+                         xbmcgui.Dialog().notification('[B][COLOR red]| PLAY.TO |[/COLOR][/B]', f'CACHE  "{current_category}"  Nepodařilo se smazat', xbmcgui.NOTIFICATION_ERROR, 3000)
                 else:
                     log(f"| PLAY.TO DEBUG CACHE - Cache soubor pro smazání (podle aktuálního nastavení) nenalezen: {cache_file_to_clear}", xbmc.LOGINFO)
-                    xbmcgui.Dialog().notification('[B][COLOR orange]| PLAY.TO |[/COLOR][/B]', f'CACHE  "{current_category}"  JIŽ NEEXISTUJE', xbmcgui.NOTIFICATION_INFO, 3000)
+                    xbmcgui.Dialog().notification('[B][COLOR orange]| PLAY.TO |[/COLOR][/B]', f'CACHE  "{current_category}"  Již neexistuje, nebo nebyla vytvořena', xbmcgui.NOTIFICATION_INFO, 3000)
             else:
                  log("| PLAY.TO DEBUG CACHE - Nelze získat adresář cache pro smazání.", xbmc.LOGERROR)
-                 xbmcgui.Dialog().notification('[B][COLOR red]| PLAY.TO |[/COLOR][/B]', 'NELZE ZÍSKAT ADRESÁŘ CACHE', xbmcgui.NOTIFICATION_ERROR, 3000)
+                 xbmcgui.Dialog().notification('[B][COLOR red]| PLAY.TO |[/COLOR][/B]', 'CACHE : Nelze získat data', xbmcgui.NOTIFICATION_ERROR, 3000)
             xbmc.executebuiltin('Container.Refresh()')
         except Exception as e:
             log(f"ERROR - Chyba při mazání cache 'Sledované' : {e}\n{traceback.format_exc()}", xbmc.LOGERROR)
-            xbmcgui.Dialog().notification('[B][COLOR red]| PLAY.TO |[/COLOR][/B]', f'CHYBA PŘI MAZÁNÍ CACHE : {e}', xbmcgui.NOTIFICATION_ERROR, 3000)
+            xbmcgui.Dialog().notification('[B][COLOR red]| PLAY.TO |[/COLOR][/B]', f'CACHE : Chyba pri mazání - {e}', xbmcgui.NOTIFICATION_ERROR, 3000)
     elif action == 'select_csfd':
         handle_csfd_selection(params.get('csfd_id'), params.get('search_type'))
     elif action == 'list_csfd_daily_tips':
@@ -2150,7 +2163,7 @@ def router(paramstring):
         parsed_url_path = urlparse(params.get('url', '')).path
         name_from_url = parsed_url_path.split('/')[-1] if '/' in parsed_url_path else 'unknown_video'
         default_name = os.path.splitext(name_from_url)[0].replace('-', ' ')
-        kb = xbmc.Keyboard(default_name, '[COLOR orange]·   ZADEJTE NÁZEV A ROK  [ FUCKING ]  FILMU / EPIZODY   ·[/COLOR]')
+        kb = xbmc.Keyboard(default_name, '[COLOR orange]·   ZADEJTE NÁZEV A ROK  [ FUCKING ]  FILMU / SERIÁLU   ·[/COLOR]')
         kb.doModal()
         if kb.isConfirmed():
             user_input_name = kb.getText().strip()
@@ -2168,7 +2181,7 @@ def router(paramstring):
                         bytes_written = file_handle.write(strm_content)
                         if bytes_written == 0 and strm_content:
                              raise IOError("Nepodařilo se zapsat do .strm souboru (0 bytes)")
-                        xbmcgui.Dialog().notification('[B][COLOR limegreen]| PLAY.TO |[/COLOR][/B]', 'LIBRARY : Úspěšně uloženo ...', xbmcgui.NOTIFICATION_INFO, 3000, sound=False)
+                        xbmcgui.Dialog().notification('[B][COLOR limegreen]| PLAY.TO |[/COLOR][/B]', 'LIBRARY : Úspěšně uloženo', xbmcgui.NOTIFICATION_INFO, 3000, sound=False)
                     except Exception as write_e:
                          log(f"LIBRARY - Chyba při zápisu .strm souboru: {write_e}\n{traceback.format_exc()}", xbmc.LOGERROR)
                          xbmcgui.Dialog().notification('[B][COLOR red]| PLAY.TO |[/COLOR][/B]', 'LIBRARY : Chyba při ukládání souboru', xbmcgui.NOTIFICATION_ERROR, 4000)
@@ -2185,8 +2198,9 @@ def router(paramstring):
         try:
              source_url = params.get('url', '')
              if not source_url: raise ValueError("Chybí URL pro stahování")
-             page_content = session.get(source_url, headers=prehrajto_client.headers, timeout=15).content
-             file_url, subtitle_url = prehrajto_client.get_video_link(page_content)
+             resp = safe_get(session, source_url, headers=prehrajto_client.headers, timeout=15)
+             page_content = resp.content if resp is not None else None
+             file_url, subtitle_url = prehrajto_client.get_video_link(page_content) if page_content else (None, None)
              if not file_url:
                  raise ValueError("Nepodařilo se získat odkaz na video soubor")
              parsed_orig_path = urlparse(source_url).path
@@ -2200,7 +2214,8 @@ def router(paramstring):
                  try:
                      subtitle_name = f"{base_name}.srt"
                      subtitle_filepath = os.path.join(current_download_path, subtitle_name)
-                     subtitle_content = session.get(subtitle_url, timeout=10).content
+                     sub_resp = safe_get(session, subtitle_url, timeout=10)
+                     subtitle_content = sub_resp.content if sub_resp is not None else None
                      sub_file_handle = None
                      try:
                          sub_file_handle = xbmcvfs.File(subtitle_filepath, 'wb')
@@ -2214,16 +2229,17 @@ def router(paramstring):
              cookies = prehrajto_client.get_premium_cookies()
              if cookies:
                  try:
-                     res_premium = session.get(f"{source_url}?do=download", cookies=cookies, headers=prehrajto_client.headers, allow_redirects=False, timeout=10)
-                     if res_premium.status_code in [301, 302, 303, 307, 308] and 'Location' in res_premium.headers:
+                     res_premium = safe_get(session, f"{source_url}?do=download", cookies=cookies, headers=prehrajto_client.headers, allow_redirects=False, timeout=10)
+                     if res_premium and res_premium.status_code in [301, 302, 303, 307, 308] and 'Location' in res_premium.headers:
                          file_url = res_premium.headers['Location']
                          log("DOWNLOAD - Používám premium odkaz.", xbmc.LOGINFO)
                  except Exception as prem_e:
                       log(f"DOWNLOAD - Chyba získání premium odkazu (pokračuji s normálním): {prem_e}", xbmc.LOGWARNING)
              dialog = xbmcgui.DialogProgress()
-             dialog.create('[B][COLOR limegreen]| PLAY.TO |[/COLOR][/B]', f'Stahuji: {download_name}\nDo: {current_download_path}') # type: ignore
-             res_download = session.get(file_url, stream=True, timeout=30, headers=prehrajto_client.headers)
-             res_download.raise_for_status()
+             dialog.create('[B][COLOR limegreen]| PLAY.TO |[/COLOR][/B]', f'DOWNLOAD : {download_name}\nDO : {current_download_path}') # --- DOWNLOAD :  ( type: ignore )
+             res_download = safe_get(session, file_url, stream=True, timeout=30, headers=prehrajto_client.headers)
+             if res_download is None:
+                 raise requests.exceptions.RequestException('Failed to start download (network error)')
              file_size = int(res_download.headers.get('Content-Length', 0))
              start_time = time.time()
              file_size_dl = 0
@@ -2291,7 +2307,7 @@ def router(paramstring):
                      pass
     elif action == 'search_title':
         search_term = params.get('name', '')
-        kb = xbmc.Keyboard(search_term, '[COLOR orange]·   HLEDAT   ·[/COLOR]')
+        kb = xbmc.Keyboard(search_term, '[COLOR orange]·   HLEDAT  [ FUCKING ]  TITUL   ·[/COLOR]')
         kb.doModal()
         if kb.isConfirmed():
             q = kb.getText().strip()

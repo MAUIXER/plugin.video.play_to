@@ -28,7 +28,7 @@ from datetime import datetime, date
 from urllib.parse import parse_qsl, urlencode, urlparse
 
 
-from resources.lib.utils import get_url, log, popinfo
+from resources.lib.utils import get_url, log, popinfo, safe_get, safe_post
 
 
 
@@ -128,14 +128,14 @@ def get_tmdb_id(trakt_id, media_type):
     url = f"https://api.trakt.tv/{media_type}s/{trakt_id}"
 
     try:
-        response = _session.get(url, headers=trakt_get_headers(addon=_addon), timeout=5)
-        if response.status_code == 200:
+        response = safe_get(_session, url, headers=trakt_get_headers(addon=_addon), timeout=5)
+        if response is not None and response.status_code == 200:
             data = response.json()
             tmdb_id = data['ids']['tmdb']
             _trakt_cache[key] = tmdb_id
             return tmdb_id
         else:
-            log(f"TRAKT - Chyba API pro Trakt ID {trakt_id} ({media_type}): {response.status_code}", xbmc.LOGERROR)
+            log(f"TRAKT - Chyba API pro Trakt ID {trakt_id} ({media_type}): {response.status_code if response is not None else 'no response'}", xbmc.LOGERROR)
     except Exception as e:
         log(f"TRAKT - Chyba při hledání TMDB ID pro {trakt_id} ({media_type}): {str(e)}", xbmc.LOGERROR)
     
@@ -155,8 +155,8 @@ def get_trakt_id(tmdb_id, media_type, session, addon):
     url = f"https://api.trakt.tv/search/tmdb/{tmdb_id}?type={media_type}"
 
     try:
-        response = session.get(url, headers=trakt_get_headers(addon=addon), timeout=5)
-        if response.status_code == 200:
+        response = safe_get(session, url, headers=trakt_get_headers(addon=addon), timeout=5)
+        if response is not None and response.status_code == 200:
             data = response.json()
             if data and len(data) > 0:
                 trakt_id = data[0][media_type]['ids']['trakt']
@@ -165,7 +165,7 @@ def get_trakt_id(tmdb_id, media_type, session, addon):
             else:
                 log(f"TRAKT - Žádná data pro TMDB ID {tmdb_id} ({media_type})", xbmc.LOGWARNING)
         else:
-            log(f"TRAKT - Chyba API pro TMDB ID {tmdb_id} ({media_type}): {response.status_code}", xbmc.LOGERROR)
+            log(f"TRAKT - Chyba API pro TMDB ID {tmdb_id} ({media_type}): {response.status_code if response is not None else 'no response'}", xbmc.LOGERROR)
     except Exception as e:
         log(f"TRAKT - Chyba při hledání Trakt ID pro {tmdb_id} ({media_type}): {str(e)}", xbmc.LOGERROR)
         
@@ -208,12 +208,12 @@ def trakt_add_to_watchlist(params, addon, handle, session=None):
     }
 
     try:
-        response = _session.post(add_url, headers=trakt_get_headers(addon=_addon, write=True), json=add_data, timeout=10)
-        if response.status_code == 401:
+        response = safe_post(_session, add_url, headers=trakt_get_headers(addon=_addon, write=True), json=add_data, timeout=10)
+        if response is not None and response.status_code == 401:
             if trakt_refresh_token(addon=_addon, session=_session):
-                response = _session.post(add_url, headers=trakt_get_headers(addon=_addon, write=True), json=add_data, timeout=10)
+                response = safe_post(_session, add_url, headers=trakt_get_headers(addon=_addon, write=True), json=add_data, timeout=10)
 
-        if response.status_code == 201:
+        if response is not None and response.status_code == 201:
             popinfo("[COLOR orange]TRAKT.TV : [/COLOR]Položka přidána do watchlistu", icon=xbmcgui.NOTIFICATION_INFO)
         else:
             popinfo("[COLOR orange]TRAKT.TV : [/COLOR]Chyba při přidávání : {response.status_code}", icon=xbmcgui.NOTIFICATION_ERROR)
@@ -284,9 +284,9 @@ def trakt_popular_lists(params, addon, handle, session=None):
 
         if not items:
             url = f'https://api.trakt.tv/lists/{list_id}/items?extended=full,images'
-            response = _session.get(url, headers=trakt_get_headers(addon=_addon), timeout=10)
+            response = safe_get(_session, url, headers=trakt_get_headers(addon=_addon), timeout=10)
             
-            if response.status_code != 200:
+            if response is None or response.status_code != 200:
                 popinfo("[COLOR red]TRAKT.TV : [/COLOR]Chyba při načítání položek seznamu", icon=xbmcgui.NOTIFICATION_ERROR)
                 return
 
@@ -344,7 +344,7 @@ def trakt_popular_lists(params, addon, handle, session=None):
                         f'PlayMedia({invidious_plugin_url})'
                     ))
         
-            # context_menu_items.append(('[COLOR orange]TRAKT : [/COLOR]VYHLEDAT NÁZEV', f'Container.Update({get_url(action="search", what=media.get("title", ""))})'))
+            # context_menu_items.append(('[COLOR orange]TRAKT : [/COLOR]VYHLEDAT TITUL', f'Container.Update({get_url(action="search", what=media.get("title", ""))})'))
             context_menu_items.append(('[COLOR orange]TRAKT : [/COLOR]PŘIDAT DO WATCHLISTU', f'RunPlugin({get_url(action="trakt_add_to_watchlist", media_type=media_type, media_id=media_id)})'))
             
             listitem.addContextMenuItems(context_menu_items)
@@ -497,7 +497,7 @@ def trakt_recommended(params, addon, handle, session=None):
                     f'PlayMedia({invidious_plugin_url})'
                 ))
 
-        # context_menu_items.append(('[COLOR orange]TRAKT : [/COLOR]VYHLEDAT NÁZEV', f'Container.Update({get_url(action="search", what=media.get("title", ""))})'))
+        # context_menu_items.append(('[COLOR orange]TRAKT : [/COLOR]VYHLEDAT TITUL', f'Container.Update({get_url(action="search", what=media.get("title", ""))})'))
         context_menu_items.append(('[COLOR orange]TRAKT : [/COLOR]PŘIDAT DO WATCHLISTU', f'RunPlugin({get_url(action="trakt_add_to_watchlist", media_type=media_type, media_id=media_id)})'))
             
         listitem.addContextMenuItems(context_menu_items)
@@ -642,7 +642,7 @@ def trakt_trending(params, addon, handle, session=None):
                     f'PlayMedia({invidious_plugin_url})'
                 ))
 
-        # context_menu_items.append(('[COLOR orange]TRAKT : [/COLOR]VYHLEDAT NÁZEV', f'Container.Update({get_url(action="search", what=media.get("title", ""))})'))
+        # context_menu_items.append(('[COLOR orange]TRAKT : [/COLOR]VYHLEDAT TITUL', f'Container.Update({get_url(action="search", what=media.get("title", ""))})'))
         context_menu_items.append(('[COLOR orange]TRAKT : [/COLOR]PŘIDAT DO WATCHLISTU', f'RunPlugin({get_url(action="trakt_add_to_watchlist", media_type=media_type, media_id=media_id)})'))
             
         listitem.addContextMenuItems(context_menu_items)
@@ -758,7 +758,13 @@ def trakt_genres(params, addon, handle, session=None):
     if not year:
         kb = xbmc.Keyboard('', '[COLOR orange]·   ZADEJTE  [ FUCKING ]  ROK NEBO ROZSAH  ( 2020-2025 )   ·[/COLOR]')
         kb.doModal()
-        if kb.isConfirmed():
+        # ensure directory is closed if user cancels while invoked via router
+        if not kb.isConfirmed():
+            try:
+                xbmcplugin.endOfDirectory(_handle, succeeded=False)
+            except Exception:
+                pass
+        else:
             year = kb.getText().strip()
 
     cache_key = f"trakt_genre_items_{category}_{genre}_{year}"
@@ -831,7 +837,7 @@ def trakt_genres(params, addon, handle, session=None):
                     f'PlayMedia({invidious_plugin_url})'
                 ))
 
-        # context_menu_items.append(('[COLOR orange]TRAKT : [/COLOR]VYHLEDAT NÁZEV', f'Container.Update({get_url(action="search", what=media.get("title", ""))})'))
+        # context_menu_items.append(('[COLOR orange]TRAKT : [/COLOR]VYHLEDAT TITUL', f'Container.Update({get_url(action="search", what=media.get("title", ""))})'))
         context_menu_items.append(('[COLOR orange]TRAKT : [/COLOR]PŘIDAT DO WATCHLISTU', f'RunPlugin({get_url(action="trakt_add_to_watchlist", media_type=media_type, media_id=media_id)})'))
          
         listitem.addContextMenuItems(context_menu_items)
@@ -1134,7 +1140,7 @@ def trakt_watchlist(params, addon, handle, session=None):
                         ))
         
                 # context_menu_items.append((
-                #     '[COLOR orange]TRAKT : [/COLOR]VYHLEDAT NÁZEV', 
+                #     '[COLOR orange]TRAKT : [/COLOR]VYHLEDAT TITUL', 
                 #     f'Container.Update({get_url(action="search", what=media.get("title", ""))})'
                 # ))
                 
@@ -1267,7 +1273,7 @@ def trakt_watchlist(params, addon, handle, session=None):
                         ))
 
                 # context_menu_items.append((
-                #     '[COLOR orange]TRAKT : [/COLOR]VYHLEDAT NÁZEV', 
+                #     '[COLOR orange]TRAKT : [/COLOR]VYHLEDAT TITUL', 
                 #     f'Container.Update({get_url(action="search", what=media.get("title", ""))})'
                 # ))
                 

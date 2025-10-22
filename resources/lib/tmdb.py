@@ -46,13 +46,19 @@ class TMDB:
         lang_setting = self.addon.getSetting('tmdb_language')  # --- LANG : SETTINGS.XML
 
         if lang_setting == 'auto':
-            kodi_lang = xbmc.getLanguage(xbmc.ISO_639_1) # --- LANG : 2 písmenný kód Kodi GUI
-            if kodi_lang == 'cs':
-                self.language = 'cs-CZ'
-            elif kodi_lang == 'en':
-                self.language = 'en-US'
-            else:
-                self.language = f'{kodi_lang}-US'        # --- LANG : Fallback ostatní jazyky
+            kodi_lang = xbmc.getLanguage(xbmc.ISO_639_1) or 'en'  # 2-letter Kodi GUI code
+            # map common codes to TMDB locales
+            lang_map = {
+                'cs': 'cs-CZ',
+                'sk': 'sk-SK',
+                'en': 'en-US',
+                'de': 'de-DE',
+                'fr': 'fr-FR',
+                'pl': 'pl-PL',
+                'es': 'es-ES',
+                'it': 'it-IT'
+            }
+            self.language = lang_map.get(kodi_lang, f"{kodi_lang}-{kodi_lang.upper()}")
         else:
             self.language = lang_setting.replace('_', '-')
 
@@ -298,9 +304,16 @@ class TMDB:
 
     def search(self, name=None, media_type=None):
         if not name:
-            kb = xbmc.Keyboard('', '·   ZADEJTE NÁZEV  [ FUCKING ]  FILMU NEBO SERIÁLU   ·')
+            kb = xbmc.Keyboard('', '[COLOR orange]·   ZADEJTE NÁZEV  [ FUCKING ]  FILMU NEBO SERIÁLU   ·[/COLOR]')
             kb.doModal()
+            # If user cancelled the keyboard and this was invoked as a router action,
+            # ensure we close the directory to avoid Kodi showing a perpetual busy spinner.
             if not kb.isConfirmed() or not kb.getText().strip():
+                try:
+                    xbmcplugin.endOfDirectory(self._handle, succeeded=False)
+                except Exception:
+                    # best-effort: if not running inside Kodi or handle unavailable, ignore
+                    pass
                 return
             name = kb.getText().strip()
 

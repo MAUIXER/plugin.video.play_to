@@ -27,7 +27,7 @@ from bs4 import BeautifulSoup
 from urllib.parse import quote, urlencode, parse_qsl
 
 
-from resources.lib.utils import log, popinfo
+from resources.lib.utils import log, popinfo, safe_get
 
 
 
@@ -162,8 +162,10 @@ class SeriesManager:
         try:
             while p <= max_pages:
                 url = f'https://prehraj.to:443/hledej/{quote(search_query)}?vp-page={p}'
-                response = requests.get(url, cookies=cookies, headers=headers)
-                soup = BeautifulSoup(response.content, 'html.parser')
+                # add timeout to prevent blocking the main thread
+                resp = safe_get(url, cookies=cookies, headers=headers, timeout=15)
+                content = resp.content if resp is not None else b''
+                soup = BeautifulSoup(content, 'html.parser')
                 video_links = soup.find_all('a', {'class': 'video--link'})
                 for v in video_links:
                     name = v.find('h3', {'class': 'video__title'}).text.strip() if v.find('h3') else ''
@@ -176,6 +178,8 @@ class SeriesManager:
                 if not next_page:
                     break
                 p += 1
+        except requests.exceptions.RequestException as e:
+            log(f'TV-MANAGER - Network error during server search : {str(e)}', level=xbmc.LOGERROR)
         except Exception as e:
             log(f'TV-MANAGER - Server search error : {str(e)}', level=xbmc.LOGERROR)
         return results
