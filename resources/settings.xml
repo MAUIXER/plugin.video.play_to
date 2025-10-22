@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<settings>
+
+
+  <category label="[ ··· NASTAVENÍ">
+
+	<setting type="lsep" label="ZÁKLADNÍ - NASTAVENÍ SLEDOVANÉ" />
+	<setting label="· SLEDOVANÉ : ZA POSLEDNÍCH" id="category" type="select" values="12 HODIN|7 DNÍ|14 DNÍ" default="12 HODIN" />
+	<setting label="· SLEDOVANÉ : POČET STRÁNEK" id="max_pages" type="select" values="1|2|3|4|5|6|7|8|9|10" default="2" />
+	<setting label="· SLEDOVANÉ : LIMIT VÝSLEDKŮ" id="ls" type="select" values="28|56|84|112|140|168|196|224|252|280" default="56" />
+
+	<setting type="lsep" label="ZÁKLADNÍ - NASTAVENÍ HLEDÁNÍ" />
+	<setting label="· HLEDÁNÍ : POČET STRÁNEK" id="search_pages" type="select" values="1|2|3|4|5|6|7|8|9|10" default="2" />
+	<setting label="· HLEDÁNÍ : LIMIT VÝSLEDKŮ" id="search_ls" type="select" values="28|56|84|112|140|168|196|224|252|280" default="56" />
+
+	<setting type="lsep" label="PLAYBACK - CONTEXT AUTOLIST" />
+	<setting label="· PLAYBACK : POČET POLOŽEK" id="playback_history_limit" type="select" values="50|100|150|200|250|300|350|400|450|500" default="250" />
+	<setting label="· AUTOLIST : POČET EPIZOD" id="autolist_items" type="select" values="1|2|3|4|5|6|7|8|9|10" default="3" />
+
+  </category>
+
+
+
+
+  <category label="[ ··· ZOBRAZENÍ">
+
+	<setting type="lsep" label="ZOBRAZENÍ - MENU A FUNKCE" />
+	<setting label="· TRAKT.TV : CONTEXT MENU" id="enable_trakt_context" type="bool" default="true" />
+	<setting label="· TRAKT.TV : SCROBBLING" id="enable_trakt_scrobbling" type="bool" default="true" />
+	<setting label="· AUTOLIST : ZAPNOUT FUNKCI" id="autolist_enable" type="bool" default="true" />
+
+	<setting type="lsep" label="ROZŠÍŘENÉ - VOLBY ZOBRAZENÍ" />
+	<setting label="· ZOBRAZIT : MENU SLEDOVANÉ" id="show_most_watched" type="bool" default="true" />
+	<setting label="· ZOBRAZIT : VELIKOST SOUBORU" id="show_size" type="bool" default="true" />
+	<setting label="· ZOBRAZIT : HODNOCENÍ TMDB" id="show_tmdb_rating" type="bool" default="false" />
+	<setting label="· ZOBRAZIT : DOBU TRVÁNÍ VIDEA" id="show_duration_time" type="bool" default="false" />
+	<setting label="· ZOBRAZIT : ODHAD RYCHLOSTI" id="show_speed_info" type="bool" default="false" />
+
+  </category>
+
+
+
+
+  <category label="[ ··· EXPRESSION">
+
+	<setting type="lsep" label="NASTAVENÍ - VÝRAZ INCLUDED" />
+	<setting label="· VÝRAZY : ( LIBOVOLNÉ )" id="filter_suffix" type="text" default="" />
+	<setting label="· JAZYKY : ( CZ|DABING )" id="filter_lang" type="text" default="" />
+	<setting label="· FORMÁT : ( 1080P | 4K )" id="filter_quality" type="text" default="" />
+
+	<setting type="lsep" label="NASTAVENÍ - VÝRAZ EXCLUDED" />
+	<setting label="· VÝRAZY : ( LIBOVOLNÉ )" id="exclude_suffix" type="text" default="" />
+	<setting label="· JAZYKY : ( CZ|DABING )" id="exclude_lang" type="text" default="" />
+	<setting label="· FORMÁT : ( 1080P | 4K )" id="exclude_quality" type="text" default="" />
+
+  </category>
+
+
+
+
+  <category label="[ ··· FILTROVÁNÍ">
+
+	<setting type="lsep" label="PREFERENCE - KVALITA A JAZYK" />
+	<setting label="· PREFEROVAT : NEFILTROVANÉ" id="quality_toggle" type="bool" default="true" />
+	<setting label="· PREFEROVAT : 1080P" id="quality_1080p" type="bool" default="false" />
+	<setting label="· PREFEROVAT : 720P" id="quality_720p" type="bool" default="false" />
+	<setting label="· PREFEROVAT : 480P" id="quality_480p" type="bool" default="false" />
+
+	<setting type="lsep" label="ROZŠÍŘENÉ - VOLBY FILTROVÁNÍ" />
+	<setting label="· UPŘEDNOSTŇOVAT CZ DABING" id="prefer_dubbed" type="bool" default="false" />
+	<setting label="· ŘADIT SESTUPNĚ PODLE VELIKOSTI" id="sort_by_size" type="bool" default="false" />
+
+	<setting type="lsep" label="FILTROVANÍ - PODLE PŘIPOJENÍ" />
+	<setting label="· POVOLIT FILTR RYCHLOSTI" id="enable_max_speed_filter" type="bool" default="false" />
+	<setting label="· MAXIMALNÍ RYCHLOST (Mbps)" id="max_download_speed" type="slider" range="0,100" default="50" option="int" />
+
+  </category>
+
+
+
+
+  <category label="[ ··· SYSTÉMOVÉ">
+
+	<setting type="lsep" label="HLEDÁNÍ - POŽADAVKY API" />
+	<setting label="· API : JAZYK HLEDÁNÍ (TMDB)" id="tmdb_language" type="select" values="auto|cs_CZ|en_GB|en_US" default="cs_CZ" />
+	<setting label="· API : JAZYK HLEDÁNÍ (TRAKT)" id="trakt_language" type="select" values="cs|en" default="cs" />
+
+	<setting type="lsep" label="CACHE - SETUP TTL TIME" />
+	<setting label="· TTL : WATCHED (HODINY)" id="most_watched_cache_ttl" type="number" default="1" />
+	<setting label="· TTL : TMDB (HODINY)" id="tmdb_cache_ttl" type="number" default="24" />
+	<setting label="· TTL : TRAKT (HODINY)" id="trakt_cache_ttl" type="number" default="24" />
+
+	<setting type="lsep" label="SETUP - SECUTITY CONTROL" />
+	<setting label="· GLOBAL : LOGGING LEVEL" id="logging_level" type="labelenum" default="4" values="DEBUG|INFO|WARNING|ERROR|DISABLED" visible="true" />
+	<setting label="· CACHE : VYPNOUT SLEDOVANÉ" id="disable_most_watched_cache" type="bool" default="true" />
+	<setting label="· ADDON : TOGGLE IP CHECK" id="disable_ip_check" type="bool" default="false" visible="true" />
+	<setting label="· ADDON : ZMĚNA NÁZVU" id="addon_name" type="text" default="PLAY.TO" visible="false" />
+
+  </category>
+
+
+
+
+  <category label="[ ··· SOUBORY">
+
+	<setting type="lsep" label="UMÍSTĚNÍ - PRACOVNÍ SOUBORY" />
+	<setting label="· UMÍSTĚNÍ : STAHOVÁNÍ" id="download" type="folder" option="writeable" default="special://userdata/PLAY-LOAD" />
+	<setting label="· UMÍSTĚNÍ : PLAYBACK" id="playback_dir" type="folder" option="writeable" default="special://userdata/PLAY-DATA/PLAYBACK" />
+	<setting label="· UMÍSTĚNÍ : HISTORIE" id="history_dir" type="folder" option="writeable" default="special://userdata/PLAY-DATA/HISTORY" />
+	<setting label="· UMÍSTĚNÍ : KNIHOVNA" id="library_path" type="folder" option="writeable" default="special://userdata/Database/PLAY-BASE/LIBRARY" />
+	<setting label="· UMÍSTĚNÍ : MANAGER SERIÁLY" id="series_db" type="folder" option="writeable" default="special://userdata/Database/PLAY-BASE/TV-SERIES" />
+	<setting label="· UMÍSTĚNÍ : MANAGER ZHLÉDNUTÉ" id="watched_db" type="folder" option="writeable" default="special://userdata/Database/PLAY-BASE/TV-WATCHED" />
+
+	<setting type="lsep" label="UMÍSTĚNÍ - CACHING SOUBORY" />
+	<setting label="· UMÍSTĚNÍ : CACHE SDÍLENÁ" id="shared_cache_path" type="folder" option="writeable" default="special://userdata/PLAY-DATA/CACHE-SHARED" />
+	<setting label="· UMÍSTĚNÍ : CACHE ČSFD" id="csfd_cache_path" type="folder" option="writeable" default="special://userdata/PLAY-DATA/CACHE-CSFD" />
+	<setting label="· UMÍSTĚNÍ : CACHE IPSET" id="ip_cache_dir" type="folder" option="writeable" default="special://userdata/PLAY-DATA/CACHE-IPSET" visible="true" />
+
+  </category>
+
+
+
+
+  <category label="[ ··· MENU ÚČTŮ">
+
+	<setting type="lsep" label="ÚČET ----- DATA SERVER" />
+	<setting label="· SERVER : E-MAIL" id="email" type="text" option="" default="" visible="true" />
+	<setting label="· SERVER : PASSWORD" id="password" type="text" option="hidden" default="" visible="true" />
+
+	<setting type="lsep" label="ÚČET - TMDB DATABASE" />
+	<setting label="· TMDB : API KEY" id="api_key" type="text" option="" default="1f0150a5f78d4adc2407911989fdb66c" visible="true" />
+
+	<setting type="lsep" label="ÚČET - CLIENT TRAKT.TV" />
+	<setting label="· TRAKT.TV : CLIENT ID" id="trakt_client_id" type="text" option="" default="" visible="true" />
+	<setting label="· TRAKT.TV : CLIENT SECRET" id="trakt_client_secret" type="text" option="" default="" visible="true" />
+	<setting label="· TRAKT.TV : ACCESS TOKEN" id="trakt_access_token" type="text" option="" default="" visible="false" />
+	<setting label="· TRAKT.TV : REFRESH TOKEN" id="trakt_refresh_token" type="text" option="" default="" visible="false" />
+
+  </category>
+
+
+
+
+  <category label="[ ··· VIEW MODE">
+
+	<setting type="lsep" label="NASTAVENÍ VZHLEDU OKEN - FILMY" />
+	<setting label="· ZOBRAZENÍ : FILMY" id="view_mode_movies" type="select" values="Seznam|Plakát|Shift|InfoWall|Široký seznam|Dlaždice|Banner|Fanart|Velký banner|Nízký seznam|Galerie|Informační seznam plakátů|Štítky|Podnabídka|Zeď s informacemi o médiích|Základní informace o médiích|Seznam skladeb s informacemi|Seznam informací o médiích|Velký čtvercový řádek|Vesla čtvercová zeď|Velká zeď na šířku|Zeď plakátů|Velký seznam plakátů" default="widelist"/>
+	<setting label="· ZOBRAZENÍ : FILMY | SUBMENU" id="view_mode_movies_submenu" type="select" values="Seznam|Plakát|Shift|InfoWall|Široký seznam|Dlaždice|Banner|Fanart|Velký banner|Nízký seznam|Galerie|Informační seznam plakátů|Štítky|Podnabídka|Zeď s informacemi o médiích|Základní informace o médiích|Seznam skladeb s informacemi|Seznam informací o médiích|Velký čtvercový řádek|Vesla čtvercová zeď|Velká zeď na šířku|Zeď plakátů|Velký seznam plakátů" default="widelist"/>
+	<setting label="· ZOBRAZENÍ : FILMY | ROK A ŽÁNRY" id="view_mode_movies_categories" type="select" values="Seznam|Plakát|Shift|InfoWall|Široký seznam|Dlaždice|Banner|Fanart|Velký banner|Nízký seznam|Galerie|Informační seznam plakátů|Štítky|Podnabídka|Zeď s informacemi o médiích|Základní informace o médiích|Seznam skladeb s informacemi|Seznam informací o médiích|Velký čtvercový řádek|Vesla čtvercová zeď|Velká zeď na šířku|Zeď plakátů|Velký seznam plakátů" default="widelist"/>
+
+	<setting type="lsep" label="NASTAVENÍ VZHLEDU OKEN - SERIÁLY" />
+	<setting label="· ZOBRAZENÍ : SERIÁLY" id="view_mode_series" type="select" values="Seznam|Plakát|Shift|InfoWall|Široký seznam|Dlaždice|Banner|Fanart|Velký banner|Nízký seznam|Galerie|Informační seznam plakátů|Štítky|Podnabídka|Zeď s informacemi o médiích|Základní informace o médiích|Seznam skladeb s informacemi|Seznam informací o médiích|Velký čtvercový řádek|Vesla čtvercová zeď|Velká zeď na šířku|Zeď plakátů|Velký seznam plakátů" default="widelist"/>
+	<setting label="· ZOBRAZENÍ : SERIÁLY | SUBMENU" id="view_mode_series_submenu" type="select" values="Seznam|Plakát|Shift|InfoWall|Široký seznam|Dlaždice|Banner|Fanart|Velký banner|Nízký seznam|Galerie|Informační seznam plakátů|Štítky|Podnabídka|Zeď s informacemi o médiích|Základní informace o médiích|Seznam skladeb s informacemi|Seznam informací o médiích|Velký čtvercový řádek|Vesla čtvercová zeď|Velká zeď na šířku|Zeď plakátů|Velký seznam plakátů" default="widelist"/>
+	<setting label="· ZOBRAZENÍ : SERIÁLY | ROK A ŽÁNRY" id="view_mode_series_categories" type="select" values="Seznam|Plakát|Shift|InfoWall|Široký seznam|Dlaždice|Banner|Fanart|Velký banner|Nízký seznam|Galerie|Informační seznam plakátů|Štítky|Podnabídka|Zeď s informacemi o médiích|Základní informace o médiích|Seznam skladeb s informacemi|Seznam informací o médiích|Velký čtvercový řádek|Vesla čtvercová zeď|Velká zeď na šířku|Zeď plakátů|Velký seznam plakátů" default="widelist"/>
+
+	<setting type="lsep" label="NASTAVENÍ VZHLEDU OKEN - MENU" />
+	<setting label="· ZOBRAZENÍ : SLEDOVANÉ" id="view_mode_most_watched" type="select" values="Seznam|Plakát|Shift|InfoWall|Široký seznam|Dlaždice|Banner|Fanart|Velký banner|Nízký seznam|Galerie|Informační seznam plakátů|Štítky|Podnabídka|Zeď s informacemi o médiích|Základní informace o médiích|Seznam skladeb s informacemi|Seznam informací o médiích|Velký čtvercový řádek|Vesla čtvercová zeď|Velká zeď na šířku|Zeď plakátů|Velký seznam plakátů" default="widelist"/>
+	<setting label="· ZOBRAZENÍ : VYHLEDÁVÁNÍ" id="view_mode_search" type="select" values="Seznam|Plakát|Shift|InfoWall|Široký seznam|Dlaždice|Banner|Fanart|Velký banner|Nízký seznam|Galerie|Informační seznam plakátů|Štítky|Podnabídka|Zeď s informacemi o médiích|Základní informace o médiích|Seznam skladeb s informacemi|Seznam informací o médiích|Velký čtvercový řádek|Vesla čtvercová zeď|Velká zeď na šířku|Zeď plakátů|Velký seznam plakátů" default="widelist"/>
+
+  </category>
+
+
+</settings>

@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+
+<addon id="plugin.video.play_to"
+       version="10.0.10"
+       name="[B][COLOR orange]| PLAY.TO |[/COLOR][/B]"
+       provider-name="[COLOR orange][  Mau!X ER  ][/COLOR]">
+
+
+    <requires>
+        <import addon="xbmc.python" version="3.0.1"/>
+        <import addon="script.module.requests" version="2.31.0" optional="false"/>
+        <import addon="script.module.beautifulsoup4" version="4.12.2" optional="false"/>
+        <import addon="service.upnext" version="9.0.21" optional="true"/>
+        <import addon="plugin.video.mau_vidious" version="9.0.60" optional="true"/>
+    </requires>
+
+
+    <extension point="xbmc.python.pluginsource" library="main.py">
+        <provides>video</provides>
+    </extension>
+
+
+    <extension point="xbmc.addon.metadata">
+
+        <summary lang="cs_CZ">[COLOR orange]SOUTH-FORK VIDEO ADDON[/COLOR]</summary>
+        <summary lang="en_GB">[COLOR orange]SOUTH-FORK VIDEO ADDON[/COLOR]</summary>
+
+        <description lang="cs_CZ">
+            [B][COLOR orange][  P L A Y . T O  ][/COLOR][/B]
+            XBMC STREAM PLUGIN
+
+            [B][COLOR orange][  FUNKCE  ][/COLOR][/B]
+            • Integrace ČSFD.CZ
+            • Integrace TMDB.ORG
+            • Integrace TRAKT.TV
+            • Funkce PLAYBACK
+            • Historie sledování
+            • Pokročilé vyhledávání
+            • Scrobbling TRAKT.TV
+            • Playlist generator
+            • TV-SHOW MANAGER
+            • COPY AND PASTE
+        </description>
+
+        <description lang="en_GB">
+            [B][COLOR orange][  P L A Y . T O  ][/COLOR][/B]
+            XBMC STREAMING PLUGIN
+
+            [B][COLOR orange][  FEATURES  ][/COLOR][/B]
+            • Integration ČSFD.CZ
+            • Integration TMDB.ORG
+            • Integration TRAKT.TV
+            • PLAYBACK function
+            • Watch history
+            • Advanced search
+            • Scrobbling TRAKT.TV
+            • Playlist generator
+            • Callable API mode
+            • TV-SHOW MANAGER
+            • COPY AND PASTE
+        </description>
+
+        <news>
+            [B][COLOR orange][  N E W S  ][/COLOR][/B]
+            • Integration ČSFD.CZ
+            • Integration TMDB.ORG
+            • Integration TRAKT.TV
+            • PLAYBACK function
+            • Watch history
+            • Advanced search
+            • Scrobbling TRAKT.TV
+            • Playlist generator
+            • Callable API mode
+            • TV-SHOW MANAGER
+            • COPY AND PASTE
+
+            [B][COLOR orange][  T O D O  ][/COLOR][/B]
+        </news>
+
+        <disclaimer lang="en_GB">SOUTH-FORK NETWORK [ KODI 22 PIERS ]</disclaimer>
+        <disclaimer lang="cs_CZ">SOUTH-FORK NETWORK [ KODI 22 PIERS ]</disclaimer>
+
+        <reuselanguageinvoker>true</reuselanguageinvoker>
+        <language>cs_CZ</language>
+        <platform>all</platform>
+        <license>MIT</license>
+
+        <email>griperstone@gmail.com</email>
+        <source>https://gitea.south-fork.uk/mauix/plugin.video.play_to</source>
+
+        <assets>
+            <icon>resources/icon.png</icon>
+            <fanart>resources/fanart.png</fanart>
+        </assets>
+
+    </extension>
+</addon>
